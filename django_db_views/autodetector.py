@@ -11,6 +11,7 @@ from django.db.migrations.autodetector import MigrationAutodetector
 from django.db.migrations.graph import MigrationGraph
 
 from django_db_views.db_view import DBView, DBMaterializedView, DBViewsRegistry
+from django_db_views.helpers import get_view_definitions_from_model
 from django_db_views.operations import ViewRunPython, DBViewModelState, ViewDropRunPython
 from django_db_views.migration_functions import ForwardViewMigration, BackwardViewMigration, \
     ForwardMaterializedViewMigration, BackwardMaterializedViewMigration, ForwardViewMigrationBase, \
@@ -179,8 +180,8 @@ class ViewMigrationAutoDetector(MigrationAutodetector):
     def generate_views_operations(self, graph: MigrationGraph) -> None:
         view_models = self.get_current_view_models()
         for (app_label, model_name), view_model in view_models.items():
-            new_view_definition = self.get_view_definition_from_model(view_model)
-            for engine, latest_view_definition in new_view_definition.items():
+            new_view_definitions = get_view_definitions_from_model(view_model)
+            for engine, latest_view_definition in new_view_definitions.items():
                 current_view_definition = self.get_previous_view_definition_state(
                     graph, app_label, view_model._meta.db_table, engine
                 )
@@ -210,7 +211,8 @@ class ViewMigrationAutoDetector(MigrationAutodetector):
                         dependencies=dependencies,
                     )
 
-    def get_forward_migration_class(self, model) -> Type[ForwardViewMigrationBase]:
+    @staticmethod
+    def get_forward_migration_class(model) -> Type[ForwardViewMigrationBase]:
         if issubclass(model, DBMaterializedView):
             return ForwardMaterializedViewMigration
         if issubclass(model, DBView):
@@ -218,7 +220,8 @@ class ViewMigrationAutoDetector(MigrationAutodetector):
         else:
             raise NotImplementedError
 
-    def get_backward_migration_class(self, model) -> Type[BackwardViewMigrationBase]:
+    @staticmethod
+    def get_backward_migration_class(model) -> Type[BackwardViewMigrationBase]:
         if issubclass(model, DBMaterializedView):
             return BackwardMaterializedViewMigration
         if issubclass(model, DBView):
@@ -233,21 +236,6 @@ class ViewMigrationAutoDetector(MigrationAutodetector):
             return DropView
         else:
             raise NotImplementedError
-
-    def get_view_definition_from_model(self, view_model: DBView) -> dict:
-        view_definitions = {}
-        if callable(view_model.view_definition):
-            raw_view_definition = view_model.view_definition()
-        else:
-            raw_view_definition = view_model.view_definition
-
-        if isinstance(raw_view_definition, dict):
-            for engine, definition in raw_view_definition.items():
-                view_definitions[engine] = self.get_cleaned_view_definition_value(definition)
-        else:
-            engine = settings.DATABASES['default']['ENGINE']
-            view_definitions[engine] = self.get_cleaned_view_definition_value(raw_view_definition)
-        return view_definitions
 
     def get_previous_view_definition_state(self, graph: MigrationGraph, app_label: str, for_table_name: str, engine: str):
         nodes = graph.leaf_nodes(app_label)
@@ -272,11 +260,6 @@ class ViewMigrationAutoDetector(MigrationAutodetector):
             else:   # if no parents mean we found initial migration
                 last_node = None
         return ""
-
-    def get_cleaned_view_definition_value(self, view_definition: str) -> str:
-        assert isinstance(view_definition, str), \
-            "View definition must be callable and return string or be itself a string."
-        return view_definition.strip()
 
     def get_current_view_definition_from_database(self, table_name: str) -> str:
         """working only with postgres"""
