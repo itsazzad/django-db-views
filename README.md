@@ -27,36 +27,36 @@
 - To create your view use DBView class, remember to set view definition attribute.
 
 
-   ```python
-    from django.db import models
-    from django_db_views.db_view import DBView
-    
-    
-    class VirtualCard(models.Model):
-        ...
-    
-    
-    class Balance(DBView):
+```python
+from django.db import models
+from django_db_views.db_view import DBView
+ 
+class VirtualCard(models.Model):
+    ...
+ 
+ 
+class Balance(DBView):
 
-        virtual_card = models.ForeignKey(
-            VirtualCard,  # VirtualCard is a regular Django model. 
-            on_delete=models.DO_NOTHING, related_name='virtual_cards'
-        )
-        total_discount = models.DecimalField(max_digits=12, decimal_places=2)
-        total_returns = models.DecimalField(max_digits=12, decimal_places=2)
-        balance = models.DecimalField(max_digits=12, decimal_places=2)
-        
-        view_definition = """
-            SELECT
-                row_number() over () as id,  # Django requires column called id
-                virtual_card.id as virtual_card_id,
-                sum(...) as total_discount,
-            ...
-        """
-    
-        class Meta:
-            managed = False  # Managed must be set to False!
-            db_table = 'virtual_card_balance'
+    virtual_card = models.ForeignKey(
+        VirtualCard,  # VirtualCard is a regular Django model. 
+        on_delete=models.DO_NOTHING, related_name='virtual_cards'
+    )
+    total_discount = models.DecimalField(max_digits=12, decimal_places=2)
+    total_returns = models.DecimalField(max_digits=12, decimal_places=2)
+    balance = models.DecimalField(max_digits=12, decimal_places=2)
+     
+    view_definition = """
+        SELECT
+            row_number() over () as id,  # Django requires column called id
+            virtual_card.id as virtual_card_id,
+            sum(...) as total_discount,
+        ...
+    """
+ 
+    class Meta:
+        managed = False  # Managed must be set to False!
+        db_table = 'virtual_card_balance'
+
    ```
 
 
